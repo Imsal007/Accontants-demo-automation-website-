@@ -15,7 +15,7 @@
 
 const SETTINGS = {
   SHEET_ID: '1GiR7E9YtP47-Y20AKsUQwWrM7fJjJ2y3YQza-z5YI4k', // Google Sheet that stores enquiries + clients
-  FIRM: 'Ledgerline Advisory',
+  FIRM: 'Hartley Advisory',
   OWNER_EMAIL: 'saldigitalm@gmail.com', // where new enquiries are alerted
   BOOKING_LINK: 'https://calendar.app.google/your-booking-page',
   REVIEW_LINK: 'https://g.page/r/your-google-review-link/review',
