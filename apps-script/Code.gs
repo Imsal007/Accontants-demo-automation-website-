@@ -44,7 +44,7 @@ function doPost(e) {
 
     const lock = LockService.getScriptLock(); lock.waitLock(10000);
     try {
-      sheet('Enquiries').appendRow([new Date(), d.action === 'book' ? 'Booking' : 'Demo', name, email, clean(d.type), clean(d.message).slice(0, 1000), 'Yes']);
+      sheet('Enquiries').appendRow([new Date(), d.action === 'book' ? 'Booking' : 'Demo', name, email, clean(d.phone).slice(0, 30), clean(d.type), clean(d.message).slice(0, 1000), 'Yes']);
     } finally { lock.releaseLock(); }
 
     sendMail(email, `Thanks ${name}, let's find a time`, [
@@ -54,7 +54,7 @@ function doPost(e) {
       d.action === 'demo' ? '<span style="color:#888;font-size:12px">This is a demo email you requested on our website. You will not receive anything else.</span>' : ''
     ]);
     MailApp.sendEmail(owner(), `New ${d.action === 'book' ? 'enquiry' : 'demo run'}: ${name}`,
-      `${name} <${email}>\nType: ${clean(d.type)}\n\n${clean(d.message)}`);
+      `${name} <${email}>\nPhone: ${clean(d.phone)}\nType: ${clean(d.type)}\n\n${clean(d.message)}`);
 
     cache.put(key, '1', 3600);
     props.setProperty('count_' + today, String(count + 1));
@@ -125,7 +125,9 @@ function reviewRequests() {
 /* ---------- setup ---------- */
 function setup() {
   const ss = book();
-  if (!ss.getSheetByName('Enquiries')) ss.insertSheet('Enquiries').appendRow(['Timestamp', 'Source', 'Name', 'Email', 'Type', 'Message', 'Consent']);
+  const enq = ss.getSheetByName('Enquiries');
+  if (enq && enq.getRange(1, 5).getValue() !== 'Phone') enq.insertColumnBefore(5).getRange(1, 5).setValue('Phone');
+  if (!ss.getSheetByName('Enquiries')) ss.insertSheet('Enquiries').appendRow(['Timestamp', 'Source', 'Name', 'Email', 'Phone', 'Type', 'Message', 'Consent']);
   if (!ss.getSheetByName('Clients')) ss.insertSheet('Clients').appendRow(['Name', 'Email', 'Type', 'Consent', 'Onboarded', 'Docs received', 'Invoice due', 'Paid', 'Deadline', 'Completed', 'Log']);
   ScriptApp.getProjectTriggers().forEach(t => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('dailyRun').timeBased().everyDays(1).atHour(9).inTimezone('Europe/London').create();
