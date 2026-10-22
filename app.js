@@ -3,7 +3,7 @@ const CONFIG = {
   firm: "Ledgerline Advisory",
   // Paste your deployed Google Apps Script web app URL here (see apps-script/README).
   // While empty, the page runs in simulation mode and sends no real email.
-  endpoint: "",
+  endpoint: "https://script.google.com/macros/s/AKfycbyvRFC7bBz1JQnyn8nZ0KHc7yUfz-E3sqqRLuU05H6Wnu2OKDhdRtnAH-7b7tuEaQph/exec",
   whatsapp: "" // e.g. "447700900000" (country code, no +)
 };
 
