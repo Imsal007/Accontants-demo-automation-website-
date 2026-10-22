@@ -192,3 +192,16 @@ if (reduce) bars.forEach((b, i) => b.style.height = barVals[i] + "%");
 
 // flip cards: tap to toggle on touch
 document.querySelectorAll(".flip").forEach(f => f.addEventListener("click", () => f.classList.toggle("on")));
+
+// studio cards float in 3D as they enter
+const flips = [...document.querySelectorAll(".studio .flip")];
+function floatCards() {
+  if (reduce) return;
+  flips.forEach((f, i) => {
+    const r = f.getBoundingClientRect();
+    const p = Math.min(1, Math.max(0, (innerHeight - r.top) / (innerHeight * .7)));
+    const e = 1 - Math.pow(1 - p, 3), col = i % 3 - 1;
+    f.style.transform = `translate3d(${col * 40 * (1 - e)}px, ${80 * (1 - e)}px, ${-200 * (1 - e)}px) rotateX(${28 * (1 - e)}deg) rotateY(${col * -14 * (1 - e)}deg)`;
+  });
+}
+addEventListener("scroll", () => requestAnimationFrame(floatCards), {passive: true}); floatCards();
