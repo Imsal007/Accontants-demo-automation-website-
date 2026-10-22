@@ -14,6 +14,7 @@
  */
 
 const SETTINGS = {
+  SHEET_ID: '1GiR7E9YtP47-Y20AKsUQwWrM7fJjJ2y3YQza-z5YI4k', // Google Sheet that stores enquiries + clients
   FIRM: 'Ledgerline Advisory',
   OWNER_EMAIL: 'saldigitalm@gmail.com', // where new enquiries are alerted
   BOOKING_LINK: 'https://calendar.app.google/your-booking-page',
@@ -123,7 +124,7 @@ function reviewRequests() {
 
 /* ---------- setup ---------- */
 function setup() {
-  const ss = SpreadsheetApp.getActive();
+  const ss = book();
   if (!ss.getSheetByName('Enquiries')) ss.insertSheet('Enquiries').appendRow(['Timestamp', 'Source', 'Name', 'Email', 'Type', 'Message', 'Consent']);
   if (!ss.getSheetByName('Clients')) ss.insertSheet('Clients').appendRow(['Name', 'Email', 'Type', 'Consent', 'Onboarded', 'Docs received', 'Invoice due', 'Paid', 'Deadline', 'Completed', 'Log']);
   ScriptApp.getProjectTriggers().forEach(t => ScriptApp.deleteTrigger(t));
@@ -148,7 +149,8 @@ function sendMail(to, subject, parts) {
   MailApp.sendEmail({ to, subject, htmlBody: html, name: SETTINGS.FIRM });
 }
 function button(label, url) { return `<p><a href="${url}" style="background:#C9A24A;color:#150f05;padding:12px 22px;border-radius:999px;text-decoration:none;font-weight:bold;display:inline-block">${label}</a></p>`; }
-function sheet(n) { return SpreadsheetApp.getActive().getSheetByName(n); }
+function book() { return SETTINGS.SHEET_ID ? SpreadsheetApp.openById(SETTINGS.SHEET_ID) : SpreadsheetApp.getActive(); }
+function sheet(n) { return book().getSheetByName(n); }
 function owner() { return SETTINGS.OWNER_EMAIL || Session.getEffectiveUser().getEmail(); }
 function yes(v) { return String(v).toLowerCase() === 'yes'; }
 function clean(v) { return String(v || '').replace(/[<>]/g, '').trim(); }
