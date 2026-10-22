@@ -133,8 +133,62 @@ $("#bookForm").addEventListener("submit", async e => {
   if (!$("#bc").checked) { st.textContent = "Please tick the consent box."; return; }
   if (f.company_website.value) return;
   btn.disabled = true; st.textContent = "Sending…";
-  const res = await send({action: "book", name: f.name.value.trim(), email: f.email.value.trim(), message: f.message.value.trim(), consent: true}, st);
+  const res = await send({action: "book", name: f.name.value.trim(), email: f.email.value.trim(), phone: f.phone.value.trim(), message: f.message.value.trim(), consent: true}, st);
   if (res.ok && !res.sim) { st.textContent = "Thank you. Check your inbox for your booking link."; f.reset(); }
   else if (!res.ok) st.textContent = "Something went wrong. Please try again shortly.";
   btn.disabled = false;
 });
+
+/* ===== cinematic layer ===== */
+// giant name: split into letters for the 3D entrance
+const giant = $("#giant");
+if (giant) giant.innerHTML = [...giant.textContent].map((c, i) => `<span style="animation-delay:${.08 * i + .2}s">${c}</span>`).join("");
+
+// statement: word-by-word scroll reveal (*word* = gold)
+const stmt = $("#stmt");
+if (stmt) {
+  stmt.innerHTML = stmt.dataset.words.split("|").map(line => line.split(" ").map(w => {
+    const g = /^\*.*\*$/.test(w); return `<span class="w${g ? " g" : ""}">${w.replace(/\*/g, "")}</span>`;
+  }).join(" ")).join("<br>");
+}
+const words = stmt ? [...stmt.querySelectorAll(".w")] : [];
+
+// depth layers, 3D screen, bars
+const layers = [...document.querySelectorAll(".cine .layer")];
+const screen = $("#screen"), show = $("#system"), bars = [...document.querySelectorAll("#bars i")];
+const barVals = [34, 48, 41, 62, 55, 70, 66, 81, 74, 88, 92, 97];
+let mx = 0, my = 0, ticking = false;
+const glow = $("#glow");
+addEventListener("pointermove", e => {
+  mx = e.clientX / innerWidth - .5; my = e.clientY / innerHeight - .5;
+  if (glow) { glow.style.left = e.clientX + "px"; glow.style.top = e.clientY + "px"; }
+  req();
+}, {passive: true});
+addEventListener("scroll", req, {passive: true});
+function req() { if (!ticking) { ticking = true; requestAnimationFrame(frame); } }
+function frame() {
+  ticking = false;
+  if (reduce) return;
+  const y = scrollY;
+  layers.forEach(l => {
+    const d = +l.dataset.depth;
+    l.style.transform = `translate3d(${mx * d * -60}px, ${y * d * .6 + my * d * -40}px, 0) rotateY(${mx * d * 6}deg)`;
+  });
+  if (words.length) {
+    const r = stmt.getBoundingClientRect();
+    const p = Math.min(1, Math.max(0, (innerHeight * .85 - r.top) / (r.height + innerHeight * .35)));
+    words.forEach((w, i) => w.classList.toggle("lit", i < p * words.length * 1.15));
+  }
+  if (screen && show) {
+    const r = show.getBoundingClientRect();
+    const p = Math.min(1, Math.max(0, -r.top / (r.height - innerHeight) * 1.6));
+    const e = 1 - Math.pow(1 - p, 3);
+    screen.style.transform = `rotateX(${58 * (1 - e) + mx * 4}deg) rotateY(${mx * -6}deg) translateY(${120 * (1 - e)}px) scale(${.86 + .14 * e})`;
+    bars.forEach((b, i) => b.style.height = (e > .5 ? barVals[i] : 10) + "%");
+  }
+}
+frame();
+if (reduce) bars.forEach((b, i) => b.style.height = barVals[i] + "%");
+
+// flip cards: tap to toggle on touch
+document.querySelectorAll(".flip").forEach(f => f.addEventListener("click", () => f.classList.toggle("on")));
