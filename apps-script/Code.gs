@@ -121,6 +121,7 @@ function reviewRequests() {
 /* ---------- setup ---------- */
 function setup() {
   const ss = book();
+  ss.setSpreadsheetTimeZone('Europe/London'); // dates typed in the sheet are read as UK dates
   const enq = ss.getSheetByName('Enquiries');
   if (enq && enq.getRange(1, 5).getValue() !== 'Phone') enq.insertColumnBefore(5).getRange(1, 5).setValue('Phone');
   if (!ss.getSheetByName('Enquiries')) ss.insertSheet('Enquiries').appendRow(['Timestamp', 'Source', 'Name', 'Email', 'Phone', 'Type', 'Message', 'Consent']);
@@ -151,5 +152,8 @@ function sheet(n) { return book().getSheetByName(n); }
 function owner() { return SETTINGS.OWNER_EMAIL || Session.getEffectiveUser().getEmail(); }
 function yes(v) { return String(v).toLowerCase() === 'yes'; }
 function clean(v) { return String(v || '').replace(/[<>]/g, '').trim(); }
-function daysSince(d) { const a = new Date(d); a.setHours(0, 0, 0, 0); const b = new Date(); b.setHours(0, 0, 0, 0); return Math.round((b - a) / 864e5); }
+// Whole calendar days between a date and today, counted on UK dates.
+// Uses the date only (no hours), so the GMT/BST clock changes can never shift a reminder by a day.
+function ukDay_(d) { const s = Utilities.formatDate(new Date(d), 'Europe/London', 'yyyy-MM-dd').split('-'); return Date.UTC(+s[0], +s[1] - 1, +s[2]); }
+function daysSince(d) { return Math.round((ukDay_(new Date()) - ukDay_(d)) / 864e5); }
 function json(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
