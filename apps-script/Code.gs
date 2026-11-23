@@ -1,14 +1,16 @@
 /**
  * Accountant demo: email automations on Google Apps Script (free, £0/month).
+ * The email designs and wording live in Emails.gs (add it as a second file in the project).
  *
  * What it does
  *  - doPost: handles the website's "Try it" demo form and "Book a call" form.
  *    Logs to a Google Sheet, sends the visitor ONE email (instant reply), alerts the owner.
  *  - Daily time-driven automations that run from the "Clients" sheet:
- *      documentChase()   reminders at day 2, 4, 7 after onboarding, then alerts owner
- *      lateInvoiceChase() chasers at day 3, 7, 14 after invoice due date
+ *      documentChase()     reminders on day 2 and 4 after onboarding, alert to the owner on day 7
+ *      lateInvoiceChase()  reminders 3, 7 and 14 days after the invoice due date
  *      deadlineReminders() 30, 7 and 0 days before each client's deadline
- *      reviewRequests()  review + referral email 7 days after work is completed
+ *      reviewRequests()    review and referral email 7 days after work is completed
+ *  - sendDemoSequence(): sends the whole 12 email journey to one address (for screenshots and Reels).
  *
  * Setup: see apps-script/README.md. Run setup() once, then deploy as a web app.
  */
@@ -16,13 +18,13 @@
 const SETTINGS = {
   SHEET_ID: '1GiR7E9YtP47-Y20AKsUQwWrM7fJjJ2y3YQza-z5YI4k', // Google Sheet that stores enquiries + clients
   FIRM: 'Hartley Advisory',
-  OWNER_EMAIL: 'saldigitalm@gmail.com', // where new enquiries are alerted
-  BOOKING_LINK: 'https://calendar.app.google/your-booking-page',
-  REVIEW_LINK: 'https://g.page/r/your-google-review-link/review',
-  UPLOAD_LINK: 'https://your-secure-upload-link',
-  REFERRAL_BASE: 'https://example.com/?ref=',
-  DAILY_DEMO_CAP: 40          // protects the Gmail daily send quota
+  OWNER_EMAIL: 'saldigitalm@gmail.com', // where new enquiries and alerts go
+  SITE: 'https://imsal007.github.io/Accontants-demo-automation-website-/',
+  DEMO_TO: 'saldigital@gmail.com',      // where sendDemoSequence() sends the journey
+  DAILY_DEMO_CAP: 40                    // protects the Gmail daily send quota
 };
+
+function ctx_(extra) { return emailContext(Object.assign({ site: SETTINGS.SITE, firm: SETTINGS.FIRM }, extra || {})); }
 
 /* ---------- web endpoint ---------- */
 function doPost(e) {
@@ -47,12 +49,8 @@ function doPost(e) {
       sheet('Enquiries').appendRow([new Date(), d.action === 'book' ? 'Booking' : 'Demo', name, email, clean(d.phone).slice(0, 30), clean(d.type), clean(d.message).slice(0, 1000), 'Yes']);
     } finally { lock.releaseLock(); }
 
-    sendMail(email, `Thanks ${name}, let's find a time`, [
-      `Hi ${name},`,
-      `Thanks for getting in touch with ${SETTINGS.FIRM}. Pick a time that suits you for a free 20-minute call and we will come prepared.`,
-      button('Choose a time', SETTINGS.BOOKING_LINK),
-      d.action === 'demo' ? '<span style="color:#888;font-size:12px">This is a demo email you requested on our website. You will not receive anything else.</span>' : ''
-    ]);
+    const type = ['sole', 'landlord', 'ltd', 'contractor'].indexOf(d.type) > -1 ? d.type : 'sole';
+    sendTemplate(email, 'enquiry', ctx_({ name: name, fullName: name, type: type }));
     MailApp.sendEmail(owner(), `New ${d.action === 'book' ? 'enquiry' : 'demo run'}: ${name}`,
       `${name} <${email}>\nPhone: ${clean(d.phone)}\nType: ${clean(d.type)}\n\n${clean(d.message)}`);
 
@@ -66,23 +64,30 @@ function doPost(e) {
 }
 function doGet() { return json({ ok: true, service: SETTINGS.FIRM + ' automations' }); }
 
+/* ---------- the full journey in one go (for screenshots and Reels) ---------- */
+function sendDemoSequence() {
+  const to = SETTINGS.DEMO_TO;
+  EMAIL_ORDER.forEach(function (k) {
+    sendTemplate(to, k, ctx_());
+    Utilities.sleep(2500); // keeps them in order in the inbox
+  });
+}
+
 /* ---------- daily automations (from the Clients sheet) ----------
  Clients columns: A Name | B Email | C Type (sole/landlord/ltd/contractor) | D Consent (Yes)
  E Onboarded date | F Docs received (Yes) | G Invoice due date | H Paid (Yes)
  I Deadline date | J Work completed date | K Log (automation writes here)          */
 function dailyRun() { documentChase(); lateInvoiceChase(); deadlineReminders(); reviewRequests(); }
 
+function clientCtx_(c) { const first = String(c.name).split(' ')[0]; return ctx_({ name: first, fullName: c.name, type: c.type || 'sole' }); }
+
 function documentChase() {
   eachClient((c, log) => {
     if (!c.onboarded || c.docs) return;
     const day = daysSince(c.onboarded);
-    if ([2, 4, 7].includes(day) && !log.has('docs' + day)) {
-      sendMail(c.email, 'A friendly nudge on your documents', [`Hi ${c.name},`,
-        'We are still waiting on a few documents so we can get started. You can upload them securely here:',
-        button('Upload documents', SETTINGS.UPLOAD_LINK)]);
-      log.add('docs' + day);
-      if (day === 7) MailApp.sendEmail(owner(), `Docs still missing: ${c.name}`, `${c.name} has not sent documents after 7 days. Worth a call.`);
-    }
+    if (day === 2 && !log.has('docs2')) { sendTemplate(c.email, 'nudge', clientCtx_(c)); log.add('docs2'); }
+    if (day === 4 && !log.has('docs4')) { sendTemplate(c.email, 'nearly', clientCtx_(c)); log.add('docs4'); }
+    if (day === 7 && !log.has('docs7')) { sendTemplate(owner(), 'alert', clientCtx_(c)); log.add('docs7'); }
   });
 }
 function lateInvoiceChase() {
@@ -90,8 +95,7 @@ function lateInvoiceChase() {
     if (!c.due || c.paid) return;
     const day = daysSince(c.due);
     if ([3, 7, 14].includes(day) && !log.has('inv' + day)) {
-      sendMail(c.email, 'Quick reminder about your invoice', [`Hi ${c.name},`,
-        `Just a gentle reminder that your invoice was due ${day} days ago. If it has already been paid, please ignore this.`]);
+      sendTemplate(c.email, 'invoice', clientCtx_(c));
       log.add('inv' + day);
       if (day === 14) MailApp.sendEmail(owner(), `Invoice 14 days overdue: ${c.name}`, 'Time for a personal call.');
     }
@@ -102,9 +106,7 @@ function deadlineReminders() {
     if (!c.deadline) return;
     const left = -daysSince(c.deadline);
     if ([30, 7, 0].includes(left) && !log.has('dl' + left)) {
-      sendMail(c.email, left ? `${left} days to your deadline` : 'Your deadline is today', [`Hi ${c.name},`,
-        left ? `Your filing deadline is in ${left} days. If anything is outstanding, upload it here and we will take care of the rest.` : 'Your filing deadline is today. We are on it, and we will confirm once it is filed.',
-        button('Upload documents', SETTINGS.UPLOAD_LINK)]);
+      sendTemplate(c.email, 'deadline', clientCtx_(c));
       log.add('dl' + left);
     }
   });
@@ -112,13 +114,7 @@ function deadlineReminders() {
 function reviewRequests() {
   eachClient((c, log) => {
     if (!c.completed || log.has('review')) return;
-    if (daysSince(c.completed) >= 7) {
-      sendMail(c.email, 'Thank you, and a small favour', [`Hi ${c.name},`,
-        `Thank you for trusting ${SETTINGS.FIRM}. If you have a moment, a short review helps other business owners find us.`,
-        button('Leave a review', SETTINGS.REVIEW_LINK),
-        `Know someone who needs a hand? Share your personal link: ${SETTINGS.REFERRAL_BASE}${encodeURIComponent(c.email)}`]);
-      log.add('review');
-    }
+    if (daysSince(c.completed) >= 7) { sendTemplate(c.email, 'review', clientCtx_(c)); log.add('review'); }
   });
 }
 
@@ -146,11 +142,10 @@ function eachClient(fn) {
     if (log.size !== before) sh.getRange(i + 1, 11).setValue([...log].join(','));
   }
 }
-function sendMail(to, subject, parts) {
-  const html = `<div style="font-family:Arial,sans-serif;max-width:560px;line-height:1.6;color:#222">${parts.filter(Boolean).map(p => p.startsWith('<') ? p : `<p>${p}</p>`).join('')}<p style="margin-top:28px">${SETTINGS.FIRM}</p></div>`;
-  MailApp.sendEmail({ to, subject, htmlBody: html, name: SETTINGS.FIRM });
+function sendTemplate(to, key, c) {
+  const m = buildEmail(key, c);
+  MailApp.sendEmail({ to: to, subject: m.subject, htmlBody: m.html, body: m.text, name: SETTINGS.FIRM });
 }
-function button(label, url) { return `<p><a href="${url}" style="background:#C9A24A;color:#150f05;padding:12px 22px;border-radius:999px;text-decoration:none;font-weight:bold;display:inline-block">${label}</a></p>`; }
 function book() { return SETTINGS.SHEET_ID ? SpreadsheetApp.openById(SETTINGS.SHEET_ID) : SpreadsheetApp.getActive(); }
 function sheet(n) { return book().getSheetByName(n); }
 function owner() { return SETTINGS.OWNER_EMAIL || Session.getEffectiveUser().getEmail(); }
